@@ -1,0 +1,48 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(gdb) Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/sym",
+            "args": [
+              //"-g", "example.msh",     /// small mesh
+              //"-g", "example_1.msh",    /// big mesh
+              //"-g", "two_wire2.msh",   /// two small wires with 1m between them and 5m around
+            //  "-g", "gmsh/grid4.msh", /// 2x2 grid with 3 bodies
+            //  "-f", "vak_trans",       /// problem formulation: transient solution
+            //  "-t", "-v", 
+            //  "-s", "5",       /// use solver 5
+            //  "--timesteps", "100",  /// number of snapshots in time
+            //  "-dt", "1",            /// d/dt artificial multiplier
+            //  "--freq", "1e-2",      /// frequency of excitaiton current
+            //  "--tmax", "2e2",       /// length of simulated time
+            //  "-3",       
+            //  "--prec", "1e-20",     /// solve until this precision is reached
+            //  "--iters", "10000"     /// number of solver iterations.
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",//"${fileDirname}",
+            "environment": [],
+            //"externalConsole": false,
+            "MIMode": "gdb",
+            //"setupCommands": [
+            //    {
+            //        "description": "Enable pretty-printing for gdb",
+            //        "text": "-enable-pretty-printing",
+            //        "ignoreFailures": true
+            //    },
+            //    {
+            //        "description": "Set Disassembly Flavor to Intel",
+            //        "text": "-gdb-set disassembly-flavor intel",
+            //       "ignoreFailures": true
+            //    }
+            //],
+            "preLaunchTask": "CMake: build"
+          }
+    ]
+}
