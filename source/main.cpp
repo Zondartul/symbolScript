@@ -2,6 +2,7 @@
 #include "util/cli_options.h"
 #include "parser/tokenizer.h"
 #include "parser/parser.h"
+#include "util/output.h"
 
 void print_help();
 void print_argc_argv(int argc, char** argv);
@@ -29,11 +30,16 @@ int main(int argc, char **argv){
     Tokenizer tokenizer;
     tokenizer.open_file(opt["filename_in"]);
     tokenizer.load();
-    tokenizer.print_tokens(tokenizer.tokens);
+    //tokenizer.print_tokens(tokenizer.tokens);
+    auto toks_out = out.tokens_to_json(tokenizer.tokens);
+    out.write_file("data_out/tokens.json", toks_out);
+    tokenizer.tokens = tokenizer.erase_token_type(tokenizer.tokens, {"COMMENT", "SP", "NL"});
 
     Parser parser;
     auto ast = parser.process(tokenizer.tokens);
-    MiniParser::print_AST(ast);
+    //MiniParser::print_AST(ast);
+    auto ast_out = out.ast_to_json(ast);
+    out.write_file("data_out/ast.json", ast_out);
 
     return 0;
 }

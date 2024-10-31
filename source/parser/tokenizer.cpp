@@ -136,8 +136,8 @@ void Tokenizer::load(){
     miniTokenizer MT;
     auto mt_tokens = MT.tokenize(S, tok_dict);
     tokens = annotate_positions(mt_tokens);
-    tokens = erase_token_type(tokens, {"COMMENT", "SP", "NL"});
-    //print_tokens(tokens);
-
-    //std::cout << "tokenizer::load() done" << std::endl;
+    
+    /// 2024.10.31 - temporarily disable skipped tokens
+    ///  so we can see them in LazyCompGUI
+    //tokens = erase_token_type(tokens, {"COMMENT", "SP", "NL"});
 }
