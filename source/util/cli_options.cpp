@@ -11,7 +11,10 @@ cli_options::cli_options()
 {}
 
 bool isOpt(const char *str, std::string S_short, std::string S_long){
-    return (str && ((S_short == str) || (S_long == str)));
+    bool res = (str && ((S_short == str) || (S_long == str)));
+    //std::cout << "isOpt("<<str<<", "<<S_short << ", " << S_long << ")? "
+    //<< (res? "yes" : "no") << std::endl;
+    return res;
 }
 
 //template<typename T> bool readval(T &x, std::string name, const char *word2){
@@ -57,23 +60,36 @@ bool isOpt(const char *str, std::string S_short, std::string S_long){
 //}
 
 std::istream& operator>>(std::istream &stream, cli_opt &opt){
-  auto vui = std::get_if<unsigned int>(&opt.val);
-  auto vd  = std::get_if<double>(&opt.val);
-  auto vb  = std::get_if<bool>(&opt.val);
-  auto vs  = std::get_if<std::string>(&opt.val);
+    auto vui = std::get_if<unsigned int>(&opt.val);
+    auto vd  = std::get_if<double>(&opt.val);
+    auto vb  = std::get_if<bool>(&opt.val);
+    auto vs  = std::get_if<std::string>(&opt.val);
 
-  if(vui){stream >> *vui;}
-  if(vd){stream >> *vd;}
-  if(vb){stream >> *vb;}
-  if(vs){stream >> *vs;}
+    if(vui){stream >> *vui;}
+    if(vd){stream >> *vd;}
+    if(vb){stream >> *vb;}
+    if(vs){stream >> *vs;}
 
-  return stream;
+    return stream;
 }
 
+std::ostream& operator<<(std::ostream &stream, const cli_opt &opt){
+    auto vui = std::get_if<unsigned int>(&opt.val);
+    auto vd  = std::get_if<double>(&opt.val);
+    auto vb  = std::get_if<bool>(&opt.val);
+    auto vs  = std::get_if<std::string>(&opt.val);
+
+    if(vui){stream << *vui;}
+    if(vd){stream << *vd;}
+    if(vb){stream << *vb;}
+    if(vs){stream << *vs;}
+
+    return stream;
+}
 
 bool cli_options::parseOptions(int argc, char **argv){
     if(argc == 1){
-        return 0;
+        return 1;
     }
     int I  = 1;
     while(argv[I]){
@@ -118,4 +134,21 @@ bool cli_options::parseOptions(int argc, char **argv){
 cli_opt& cli_options::operator[](std::string name){return options.at(name);}
 bool cli_options::has(std::string name){
     return options.at(name).assigned;
+}
+
+void cli_options::printOptions(){
+    std::stringstream ss;
+    ss << "Provided options:\n";
+    for(const auto& [k,v]: options){
+        if(v.assigned){
+            ss << "\t" << k << ": " << v << "\n";
+        }
+    }
+    ss << "Missing options:\n";
+    for(const auto& [k,v]: options){
+        if(!v.assigned){
+            ss << "\t" << k << ": " << v << "\n";
+        }
+    }   
+    std::cout << ss.str() << std::endl;
 }

@@ -30,11 +30,10 @@ public:
 
   std::map<std::string, cli_opt> options;
 
-  bool has(std::string name); // returns true if option is specified
-  cli_opt& operator[](std::string name);
-  //bool isOpt(const char *str, std::string S_short, std::string S_long);
+  bool has(std::string name);            /// returns true if option is specified
+  cli_opt& operator[](std::string name); /// returns the value of the option
   bool parseOptions(int argc, char **argv);
-  //void printHelp();
+  void printOptions();                   /// debug info about supplied options
 };
 
 extern cli_options opt;
