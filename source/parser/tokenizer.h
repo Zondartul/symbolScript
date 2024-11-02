@@ -59,3 +59,5 @@ class Tokenizer{
     static std::vector<token> erase_token_type(const std::vector<token>& tokens, std::set<std::string> erased_types);
     static void print_tokens(std::vector<token> tokens);
 };
+
+bool operator==(const Tokenizer::tok_pos& pos1, const Tokenizer::tok_pos& pos2);

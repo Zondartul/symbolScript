@@ -141,3 +141,11 @@ void Tokenizer::load(){
     ///  so we can see them in LazyCompGUI
     //tokens = erase_token_type(tokens, {"COMMENT", "SP", "NL"});
 }
+
+
+bool operator==(const Tokenizer::tok_pos& pos1, const Tokenizer::tok_pos& pos2){
+    return (pos1.char_idx == pos2.char_idx) &&
+    (pos1.col == pos2.col) &&
+    (pos1.line == pos2.line) &&
+    (pos1.filename == pos2.filename);
+}

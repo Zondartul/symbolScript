@@ -3,6 +3,7 @@
 #include "parser/tokenizer.h"
 #include "parser/parser.h"
 #include "util/output.h"
+#include "parser/ast_fixer.h"
 
 void print_help();
 void print_argc_argv(int argc, char** argv);
@@ -38,7 +39,9 @@ int main(int argc, char **argv){
     Parser parser;
     auto ast = parser.process(tokenizer.tokens);
     //MiniParser::print_AST(ast);
-    auto ast_out = out.ast_to_json(ast);
+    auto ast_pretty = ast_unroll_lists(ast);
+    ast_pretty = ast_merge_singles(ast_pretty);
+    auto ast_out = out.ast_to_json(ast_pretty);
     out.write_file("data_out/ast.json", ast_out);
 
     return 0;
