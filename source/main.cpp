@@ -41,6 +41,7 @@ int main(int argc, char **argv){
     //MiniParser::print_AST(ast);
     auto ast_pretty = ast_unroll_lists(ast);
     ast_pretty = ast_merge_singles(ast_pretty);
+    calc_NT_positions(ast_pretty);
     auto ast_out = out.ast_to_json(ast_pretty);
     out.write_file("data_out/ast.json", ast_out);
 

@@ -88,10 +88,16 @@ std::string merge_with_delim(std::string Sa, std::string Sb, std::string delim){
     return Sa + ((!Sa.empty() && !Sb.empty())? delim : "") + Sb;
 }
 
+using tok_pos = Tokenizer::tok_pos;
+tok_pos max_pos(tok_pos p1, tok_pos p2){return (p1.char_idx > p2.char_idx ? p1 : p2);}
+tok_pos min_pos(tok_pos p1, tok_pos p2){return (p1.char_idx < p2.char_idx ? p1 : p2);}
+
 Token ast_merge_token(Token A, Token B){
     Token res = A;
     res.text = merge_with_delim(A.text, B.text, ".");
     res.type = merge_with_delim(A.type, B.type, ".");
+    res.pos1 = max_pos(A.pos1, B.pos1);
+    res.pos2 = max_pos(A.pos2, B.pos2);
     return res;
 }
 
@@ -99,9 +105,11 @@ AST ast_merge_singles(AST N){
     //std::cout << "merge singles" << std::endl;
     if(!N.children.size()){return N;}
     if(N.children.size() == 1){
+        auto ch = N.children.at(0);
+        ch = ast_merge_singles(ch);
         auto tok_pr = N.tok;
-        auto tok_ch = N.children.at(0).tok;
-        N = N.children.at(0);
+        auto tok_ch = ch.tok;
+        N = ch;
         N.tok = ast_merge_token(tok_pr, tok_ch);
     }else{
         for(auto &ch:N.children){
@@ -109,4 +117,33 @@ AST ast_merge_singles(AST N){
         }
     }
     return N;
+}
+
+
+tok_pos get_min_pos(std::vector<AST> v_ast){
+    tok_pos p1 = v_ast.front().tok.pos1;
+    for(const auto &ch:v_ast){
+        p1 = min_pos(p1, ch.tok.pos1);
+        p1 = min_pos(p1, ch.tok.pos2);
+    }
+    return p1;
+}
+
+tok_pos get_max_pos(std::vector<AST> v_ast){
+    tok_pos p1 = v_ast.front().tok.pos1;
+    for(const auto &ch:v_ast){
+        p1 = max_pos(p1, ch.tok.pos1);
+        p1 = max_pos(p1, ch.tok.pos2);
+    }
+    return p1;
+}
+
+void calc_NT_positions(AST& ast){
+    if(ast.children.size()){
+        for(auto &ch:ast.children){
+            calc_NT_positions(ch);
+        }
+        ast.tok.pos1 = get_min_pos(ast.children);
+        ast.tok.pos2 = get_max_pos(ast.children);
+    }
 }

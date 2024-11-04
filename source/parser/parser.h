@@ -47,4 +47,5 @@ class Parser{
     static void preproc_fold_curlies(v_AST &stack);
     static AST process(v_tokens); /// runs everything through MiniParser
     static void parse_braces(AST& ast);
+    static void calc_NT_positions(AST& ast);
 };

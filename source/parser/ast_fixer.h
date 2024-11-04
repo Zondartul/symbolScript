@@ -10,3 +10,7 @@ Parser::AST ast_unroll_lists(Parser::AST N);
     /// so A = B = C
     //  becomes Abc
 Parser::AST ast_merge_singles(Parser::AST N);
+
+/// calculates the positions of non-terminal symbols
+///	from terminal children
+void calc_NT_positions(Parser::AST& ast);
