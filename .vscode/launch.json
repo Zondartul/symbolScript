@@ -10,7 +10,8 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/sym",
             "args": [
-              "-i", "data_in/commands.c", // argument "filename_in"
+            //  "-i", "data_in/commands.c", // argument "filename_in"
+            "-i", "data_in/test_syntax.c", // argument "filename_in"  
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",//"${fileDirname}",

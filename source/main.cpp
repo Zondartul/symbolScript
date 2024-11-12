@@ -4,9 +4,11 @@
 #include "parser/parser.h"
 #include "util/output.h"
 #include "parser/ast_fixer.h"
+#include <cassert>
 
 void print_help();
 void print_argc_argv(int argc, char** argv);
+void compile();
 
 int main(int argc, char **argv){
     //print_argc_argv(argc, argv);
@@ -28,22 +30,7 @@ int main(int argc, char **argv){
         return 0;
     }
 
-    Tokenizer tokenizer;
-    tokenizer.open_file(opt["filename_in"]);
-    tokenizer.load();
-    //tokenizer.print_tokens(tokenizer.tokens);
-    auto toks_out = out.tokens_to_json(tokenizer.tokens);
-    out.write_file("data_out/tokens.json", toks_out);
-    tokenizer.tokens = tokenizer.erase_token_type(tokenizer.tokens, {"COMMENT", "SP", "NL"});
-
-    Parser parser;
-    auto ast = parser.process(tokenizer.tokens);
-    //MiniParser::print_AST(ast);
-    auto ast_pretty = ast_unroll_lists(ast);
-    ast_pretty = ast_merge_singles(ast_pretty);
-    calc_NT_positions(ast_pretty);
-    auto ast_out = out.ast_to_json(ast_pretty);
-    out.write_file("data_out/ast.json", ast_out);
+    compile();
 
     return 0;
 }
@@ -70,4 +57,103 @@ void print_argc_argv(int argc, char** argv){
         ss << argv[i] << " ";
     }
     std::cout << ss.str() << std::endl;
+}
+
+typedef unsigned int uint;
+
+
+
+
+struct cfg_compile{
+    std::string file_in;
+    std::string text_in;
+    bool do_normal_compile=false;
+    bool do_stage_tokens=false;
+    bool do_stage_parse=false;
+    bool do_output_tokens=false;
+    bool do_output_parse=false;
+    bool do_test_parse=false;
+    std::string json_out_toks;
+    std::string json_out_ast;
+};
+
+class Compiler{
+    public:
+    Tokenizer tokenizer;
+    Parser parser;
+    Parser::AST ast;
+    std::optional<Parser::AST> parse_template;
+
+    void tokenize_begin(cfg_compile cfg){
+        tokenizer.reset();
+        assert(cfg.file_in.length() || cfg.text_in.length());
+        if(cfg.file_in.length()){tokenizer.open_file(cfg.file_in);}
+        else                    {tokenizer.set_text(cfg.text_in);}
+        tokenizer.load();
+    }
+    void tokenize_end(cfg_compile cfg){
+        tokenizer.tokens = tokenizer.erase_token_type(tokenizer.tokens, {"COMMENT", "SP", "NL"});
+    }
+    void tokenize_output(cfg_compile cfg){
+        auto toks_out = out.tokens_to_json(tokenizer.tokens);
+        out.write_file(cfg.json_out_toks, toks_out);
+    }
+    void parse(cfg_compile cfg){
+        ast = parser.process(tokenizer.tokens, parse_template);
+    }
+    void parse_output(cfg_compile cfg){
+        auto ast_pretty = ast_unroll_lists(ast);
+        ast_pretty = ast_merge_singles(ast_pretty);
+        calc_NT_positions(ast_pretty);
+        auto ast_out = out.ast_to_json(ast_pretty);
+        out.write_file(cfg.json_out_ast, ast_out);
+    }
+    void run(cfg_compile cfg){
+        if(cfg.do_test_parse){           /// run tests
+            test_parse(cfg);
+        }
+        if(cfg.do_normal_compile){               /// compile cli input file
+            basic_run(cfg);
+        }
+    }
+    void basic_run(cfg_compile cfg){
+        if(!(cfg.do_stage_tokens)){return;}
+        tokenize_begin(cfg);
+        if(cfg.do_output_tokens){tokenize_output(cfg);}
+        tokenize_end(cfg);
+
+        if(!(cfg.do_stage_parse)){return;}
+        parse(cfg);
+        if(cfg.do_output_parse){parse_output(cfg);}
+    }
+    void test_parse(cfg_compile cfg){
+        auto cfg2 = cfg;
+        cfg2.file_in = "";
+        cfg2.json_out_toks = "data_out/test_parse_tokens.json";
+        cfg2.json_out_ast  = "data_out/test_parse_ast.json"; 
+        for(auto test:Parser::tests){
+            std::cout << "test [" << test.first << "]...";
+            cfg2.text_in = test.first;
+            parse_template = test.second;
+            basic_run(cfg2);
+            parse_template = std::nullopt;
+            std::cout << "OK\n";
+        }
+    }
+};
+
+
+void compile(){
+    cfg_compile cfg;
+    cfg.file_in = (std::string&)opt["filename_in"];
+    cfg.do_stage_tokens = true;
+    cfg.do_stage_parse = true;
+    cfg.do_output_tokens = true;
+    cfg.do_output_parse = true;
+    cfg.do_normal_compile = true;
+    cfg.do_test_parse = true;
+    cfg.json_out_toks = "data_out/tokens.json";
+    cfg.json_out_ast  = "data_out/ast.json";
+    Compiler compiler;
+    compiler.run(cfg);
 }

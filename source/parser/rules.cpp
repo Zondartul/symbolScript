@@ -1,16 +1,27 @@
 #include "parser/parser.h"
-
+#include "parser/parse_template.h"
+/// SymbolScript syntax
+/// keywords:
+/// definition:     class func interface
+/// flow control:   while for in if elif else
+/// punctuation:    ( , ) { ; } [ : ]
+/// comments: // /* */
+/// literals: numeric: -1 -1.0e-5ijk 0b1011 0xF00B 
+///            string: "blah" % x .. stuff
+///
 Tokenizer::v_minitoken_infos Tokenizer::tok_dict{
-    {std::regex("vector"), "VECTOR"},
-    {std::regex("matrix"), "MATRIX"},
-    {std::regex("array"),  "ARRAY"},
+    //{std::regex("vector"), "VECTOR"},
+    //{std::regex("matrix"), "MATRIX"},
+    //{std::regex("array"),  "ARRAY"},
     {std::regex("\"[^\"]*\""), "STRING"},
-    {std::regex("//.*\n"), "COMMENT"},
-    {std::regex("and|or|not"), "OP"},
+    {std::regex("//.*\n|//.*$"), "COMMENT"},
+    {std::regex("\\/\\*([^*]|\\*[^\\/])*(\\*\\/|$)"), "COMMENT"},
+    {std::regex("and|or|not|in"), "OP"},
+    {std::regex("if|elif|else|while|for|return"), "KEYWORD"},
     {std::regex("[A-Za-z][_a-zA-Z0-9]*"), "IDENT"},
     {std::regex("=="), "OP"},
     {std::regex(":=|[:=(){};\\[\\],]|--"), "PUNCT"},
-    {std::regex("[+\\-\\/^<>.*!]"), "OP"},
+    {std::regex("[+\\-\\/^%<>.*!?&]"), "OP"},
     {std::regex("\\-?[0-9]+(\\.[0-9]+)?(e-?[0-9]+)?"), "NUMBER"},
     //{std::regex("[+\\-\\/*]"), "OP"},
     {std::regex("[ \t\r]+"), "SP"},
@@ -28,24 +39,50 @@ Parser::v_rules Parser::rules = {
 
     /// also later, add a list of NT-tokens to flatten (temporary tokens that only force an ordering)
 
-    // true rules here:
+    /// old rules:
     /// var_defintion(expanded):
     ///   IDENT [':' IDENT ['(' sym_list ')']] [ (':='|'=') sym ] [ '--' STRING ] ';'
     ///   -name-  -type-    -constr.args-     -copy-or-func-init- -description-
     ///
     /// var_definition: IDENT type_constr? initializer? description?
     /// prefix,    lookeahead,   reduction
-    //{{"sym"},                      "\\;",     "var_definition"},
-    {{"\\:", "IDENT"},                      "\\(",     "SHIFT"},
-    {{"\\:", "IDENT"},                      "*",     "vd_type_hint"},
-    {{"\\:", "IDENT"},                      "\\(",   "SHIFT"},
-    {{"IDENT"},                            "\\:",    "SHIFT"},
-    {{"IDENT"},                            "\\:=",    "SHIFT"},
-    {{"IDENT"},                            "\\=",    "SHIFT"},
-    //{{"vd_type_hint", "braced_sym"}, "vd_type_hint_w_args"},
-    //{{"vd_type_hint", "braced_sym_list"},   "vd_type_hint_w_args"}, /// n args
-    {{"\\:", "IDENT", "braced_sym"},        "*",     "vd_type_hint"},
-    {{"\\:", "IDENT", "braced_sym_list"},   "*",     "vd_type_hint"}, /// n args
+    
+    /// new rules:
+    
+    //{{"\\:", "IDENT"},                      "\\(",     "SHIFT"},
+    //{{"\\:", "IDENT"},                      "*",     "vd_type_hint"},
+    //{{"\\:", "IDENT"},                      "\\(",   "SHIFT"},
+    //{{"IDENT"},                            "\\:",    "SHIFT"},
+    //{{"IDENT"},                            "\\:=",    "SHIFT"},
+    //{{"IDENT"},                            "\\=",    "SHIFT"},
+    //{{"\\:", "IDENT", "braced_sym"},        "*",     "vd_type_hint"},
+    //{{"\\:", "IDENT", "braced_sym_list"},   "*",     "vd_type_hint"}, /// n args
+     //if-elif-else block
+     //
+     //        /\ 
+     //        v ^
+     /// if -> elif -> else
+     //    \      \----/
+     //     \---------/
+     
+     {{"\\if", "braced_sym", "statement"},         "*",     "if_block"},
+     
+     {{"if_block"},                           "\\elif",      "SHIFT"},
+     {{"if_block", "\\elif", "statement"},         "*",     "elif_block"},
+     
+     {{"elif_block"},                         "\\elif", "SHIFT"},
+     {{"elif_block", "\\elif", "statement"},       "*",     "elif_block"},
+     
+     {{"if_block"},                           "\\else",      "SHIFT"},
+     {{"if_block", "\\else", "statement"},         "*",     "if_else_block"},
+     
+     {{"elif_block", "\\else", "statement"},       "*",     "if_else_block"},
+     
+     {{"if_block"},                           "*",      "statement"},
+     {{"elif_block"},                         "*",      "statement"},
+     {{"if_else_block"},                      "*",      "statement"},
+     
+
      {{"\\(", "sym", "\\)"},                "*",     "braced_sym"},
      {{"\\(", "sym_list", "\\)"},           "*",     "braced_sym_list"},
       {{"sym", "\\,", "sym"},               "OP",    "SHIFT"},
@@ -56,47 +93,45 @@ Parser::v_rules Parser::rules = {
     {{"\\=", "sym"},                        "OP",    "SHIFT"},
     {{"\\:=", "sym"},                       "\\[",   "SHIFT"},
     {{"\\=", "sym"},                        "\\[",   "SHIFT"},
+    {{"sym", "\\:", "IDENT"},                 "*",     "type_hint"},
+    {{"type_hint"},                         "*",     "sym"},
     {{"sym", "\\=", "sym"},                "\\;",   "assignment"},
     {{"sym", "\\:=", "sym"},               "\\;",   "assignment"},
-    {{"sym", "\\=", "function_call"},      "\\;",   "assignment"},
-    {{"sym", "\\:=", "function_call"},     "\\;",   "assignment"},
+    //{{"sym", "\\=", "function_call"},      "\\;",   "assignment"},
+    //{{"sym", "\\:=", "function_call"},     "\\;",   "assignment"},
     {{"\\:=", "sym"},                       "*",     "vd_assignment"},
     {{"\\=", "sym"},                        "*",     "vd_assignment"},
-    {{"\\:=", "function_call"},             "\\;",   "vd_assignment"},
-    {{"\\=",  "function_call"},             "\\;",   "vd_assignment"},    
+    //{{"\\:=", "function_call"},             "\\;",   "vd_assignment"},
+    //{{"\\=",  "function_call"},             "\\;",   "vd_assignment"},    
     {{"\\--", "STRING"},                    "*",     "vd_description"},
-    /// collecting all the opts
-    {{"vd_type_hint"},                      "\\;",   "vd_options"},
-    {{"vd_type_hint"},                      "\\--",  "vd_options3"},
-    {{"vd_type_hint"},                      "\\=",   "vd_options2"},
-    {{"vd_type_hint"},                      "\\:=",  "vd_options2"},
+        /// collecting all the opts
+        //{{"vd_type_hint"},                      "\\;",   "vd_options"},
+        //{{"vd_type_hint"},                      "\\--",  "vd_options3"},
+        //{{"vd_type_hint"},                      "\\=",   "vd_options2"},
+        //{{"vd_type_hint"},                      "\\:=",  "vd_options2"},
 
-    {{"vd_assignment"},                      "\\;",  "vd_options"},
-    {{"vd_assignment"},                      "\\--", "vd_options3"},
-    
-    {{"vd_description"},                    "\\;",   "vd_options"},
-    /// collapse all the opts
-    {{"vd_options2", "vd_options3"},        "*",     "vd_options3"},
-    {{"vd_options2", "vd_options"},         "*",     "vd_options"},
-    {{"vd_options3", "vd_options"},         "*",     "vd_options"},
+        //{{"vd_assignment"},                      "\\;",  "vd_options"},
+        //{{"vd_assignment"},                      "\\--", "vd_options3"},
+        
+        //{{"vd_description"},                    "\\;",   "vd_options"},
+        /// collapse all the opts
+        //{{"vd_options2", "vd_options3"},        "*",     "vd_options3"},
+        //{{"vd_options2", "vd_options"},         "*",     "vd_options"},
+        //{{"vd_options3", "vd_options"},         "*",     "vd_options"},
 
-    {{"IDENT", "vd_options"},               "\\;",   "var_definition"},
+        //{{"IDENT", "vd_options"},               "\\;",   "var_definition"},
 
-    {{"var_definition"},                    "\\;",   "statement"},
-    {{"assignment"},                        "\\;",   "statement"},
-    //{{"sym", "vd_assignment"},              "\\;",   "assignment"},
+        //{{"var_definition"},                    "\\;",   "statement"},
     //{{"assignment"},                        "\\;",   "statement"},
+    {{"assignment", "\\;"},                 "*",   "statement"},
     /// ---------------
     /// function_call: sym '(' sym_list ')' ';'
     {{"IDENT"},                             "\\(",   "SHIFT"},
     {{"IDENT"},                             "*",     "sym"},
     {{"\\(", "\\)"},                        "*",     "braces_empty"},
-    //{{"IDENT", "\\(", "\\)"},               "*",     "function_call"},
     {{"IDENT", "braces_empty"},             "*",     "function_call"},
     {{"IDENT", "braced_sym"},               "*",     "function_call"},
     {{"IDENT", "braced_sym_list"},          "*",     "function_call"},
-    //{{"function_call"},                     "\\;",   "statement"},
-    //{{"sym"},                               "\\;",  "statement"}, /// eh, might be a function | actually foo; shouldn't be a thing.
     /// ---------------
     /// array: '[' sym_list ']'
     {{"\\[", "\\]"},                        "*",     "array"},
@@ -107,15 +142,15 @@ Parser::v_rules Parser::rules = {
     /// array_list: [array (',' array)]
     {{"array", "\\,", "array"},             "*",     "array_list"},
     {{"array_list", "\\,", "array"},        "*",     "array_list"},
-    /// vector_constr: 'vector' array
-    {{"VECTOR", "array"},                   "*",     "vector_constr"},
-    {{"vector_constr"},                     "*",     "sym"},
-    /// matrix_constr: 'matrix' '[' array_list ']'
-    {{"MATRIX", "\\[", "\\]"},              "*",     "matrix_constr"}, // 0-by-0
-    {{"MATRIX", "\\[", "array", "\\]"},     "*",     "matrix_constr"}, // n-by-1
-    {{"MATRIX", "\\[", "array_list", "\\]"},"*",     "matrix_constr"}, // n-by-m
-    {{"matrix_constr"},                     "*",     "sym"},
-    /// command_constr: '{' command* '}'
+        /// vector_constr: 'vector' array
+        //{{"VECTOR", "array"},                   "*",     "vector_constr"},
+        //{{"vector_constr"},                     "*",     "sym"},
+        /// matrix_constr: 'matrix' '[' array_list ']'
+        //{{"MATRIX", "\\[", "\\]"},              "*",     "matrix_constr"}, // 0-by-0
+        //{{"MATRIX", "\\[", "array", "\\]"},     "*",     "matrix_constr"}, // n-by-1
+        //{{"MATRIX", "\\[", "array_list", "\\]"},"*",     "matrix_constr"}, // n-by-m
+        //{{"matrix_constr"},                     "*",     "sym"},
+        /// command_constr: '{' command* '}'
     {{"\\{", "command_list", "\\}"},        "*",     "command_constr"},
         {{"statement", "statement"},        "*",     "command_list"},
         {{"command_list", "statement"},     "*",     "command_list"},
@@ -129,11 +164,131 @@ Parser::v_rules Parser::rules = {
     {{"braced_sym"},                        "*",     "sym"}, /// (a+b)
     {{"function_call"},                     "*",     "sym"}, /// foo(a,b,c)
     {{"sym", "array"},                      "*",     "sym"}, /// a[b] = c[d]
-    {{"sym"},                               "\\;",   "statement"}, /// e.g. if it's a function call
-    {{"statement", "\\;"},                  "*",     "statement_list"},
-    {{"statement_list", "statement_list"},  "*",     "statement_list"},
+    //{{"sym"},                               "\\;",   "statement"}, /// e.g. if it's a function call
+    {{"sym", "\\;"},                        "*",     "statement"}, /// e.g. if it's a function call
+    
+    {{"statement"},                         "*",     "statement_list"},
+    //{{"statement_list", "statement_list"},  "*",     "statement_list"},
+    {{"statement_list", "statement"},       "*",     "statement_list"},
     ///-------------------
     
+};
+
+std::vector<std::pair<std::string, Parser::AST>> Parser::tests = {
+    {"A = B;",
+        ast("statement_list",{
+            ast("statement", {
+                ast("assignment", {
+                    ast("sym",{ast("IDENT")}),
+                    ast("\\="),
+                    ast("sym",{ast("IDENT")})
+                }), 
+            }),
+            ast("\\;")
+        })
+    },
+    {"B := 5+4*3+(2*1.5);", 
+        ast("statement_list",{
+            ast("statement",{
+                ast("assignment",{
+                    ast("sym",{ast("IDENT")}),
+                    ast("\\:="),
+                    ast("sym",{
+                        ast("sym",{
+                            ast("sym",{
+                                ast("sym",{ast("NUMBER")}),
+                                ast("OP"),
+                                ast("sym",{ast("NUMBER")})
+                            }),
+                            ast("OP"),
+                            ast("sym",{ast("NUMBER")})
+                        }),
+                        ast("OP"),
+                        ast("sym",{
+                            ast("braced_sym",{
+                                ast("\\("),
+                                ast("sym",{
+                                    ast("sym",{ast("NUMBER")}),
+                                    ast("OP"),
+                                    ast("sym",{ast("NUMBER")}),
+                                }),
+                                ast("\\)")
+                            })
+                        })
+                    })
+                })
+            })
+        })
+    },
+    {"print(\"hello\");",
+        ast("statement_list",{
+            ast("statement",{
+                ast("sym",{
+                    ast("function_call",{
+                        ast("IDENT"),
+                        ast("braced_sym",{
+                            ast("\\("),
+                            ast("sym",{ast("STRING")}),
+                            ast("\\)"),
+                        })
+                    })
+                }),
+                ast("\\;")
+            })
+        })
+    },
+    {"C = 10 + sqrt(A);",
+        ast("statement_list",{
+            ast("statement",{
+                ast("assignment",{
+                    ast("sym",{ast("IDENT")}),
+                    ast("\\="),
+                    ast("sym",{
+                        ast("sym",{ast("NUMBER")}),
+                        ast("OP"),
+                        ast("sym",{
+                            ast("function_call",{
+                                ast("IDENT"),
+                                ast("braced_sym",{
+                                    ast("\\("),
+                                    ast("sym",{ast("IDENT")}),
+                                    ast("\\)")
+                                })
+                            })
+                        })
+                    })
+                }),
+                ast("\\;")
+            })
+        })
+    },
+    {"if(A) print(B);", 
+        ast("statement_list",{
+            ast("statement",{
+                ast("if-block",{
+                    ast("\\if"),
+                    ast("braced_sym",{
+                        ast("\\("),
+                        ast("sym",{ast("IDENT")}),
+                        ast("\\)")
+                    }),
+                    ast("statement",{
+                        ast("sym",{
+                            ast("function_call",{
+                                ast("IDENT"),
+                                ast("braced_sym",{
+                                    ast("\\("),
+                                    ast("sym",{ast("STRING")}),
+                                    ast("\\)")
+                                })
+                            })
+                        }),
+                        ast("\\;")
+                    })
+                })
+            })
+        })
+    }
 };
 
   /*

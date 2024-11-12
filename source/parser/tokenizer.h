@@ -44,7 +44,9 @@ class Tokenizer{
 
     Tokenizer();
     ~Tokenizer();
+    void reset();
     void open_file(std::string filename);
+    void set_text(std::string text);
     void load();
 
     std::string file;

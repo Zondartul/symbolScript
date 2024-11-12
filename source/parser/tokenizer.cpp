@@ -17,7 +17,8 @@ v_minitokens miniTokenizer::tokenize(const std::string &S, v_minitoken_infos tok
     
     std::smatch match;
     auto flags = std::regex_constants::match_continuous;
-    
+    int line_num = 0;
+
     for(auto I = S.cbegin(); I != S.end(); I += match.str().length()){ //while(I != S.cend()){
         bool found = false;
         for(const auto &ti:tok_dict){
@@ -30,14 +31,18 @@ v_minitokens miniTokenizer::tokenize(const std::string &S, v_minitoken_infos tok
             found = true;
             //std::cout << "matched " << tok.type << " [" << tok.text << "]" << std::endl;
             tokens.push_back(tok);
+            if(tok.text.find('\n') != -1){line_num++;}
             break;
         }
         if(!found){
             int pos = std::distance(S.begin(), I);
-            std::cout << "Can't read token starting from: [";
-            std::cout << *I << "]: " << S.substr(std::distance(S.begin(),I)) << std::endl;
+            std::stringstream maybe_tok;
+            maybe_tok << "[" << S.substr(pos,10) << "...]";
+            std::cout << "Tokenizer error @ line " << line_num << ":\n";
+            std::cout << "Can't read token starting from " << maybe_tok.str();
+            //std::cout << *I << "]: " << S.substr(std::distance(S.begin(),I)) << std::endl;
             std::cout << "(( position = " << pos << "))" << std::endl;
-            throw std::runtime_error("can't read token");
+            throw std::runtime_error("can't read token "+maybe_tok.str());
         }
     }
     return tokens;
@@ -78,10 +83,25 @@ Tokenizer::~Tokenizer(){
     if(cur_file_text == &file){cur_file_text = nullptr;}
 }
 
+void Tokenizer::reset(){
+    //std::string file;
+    //std::vector<token> tokens;
+    //static std::string cur_filename; ///so like, why even make things static if we gonna do this anyway?
+    file.clear();
+    tokens.clear();
+    cur_filename.clear();
+}
+
 void Tokenizer::open_file(std::string filename){
     file = fileStore.open_file(filename);
     cur_file_text = &file;
     cur_filename = filename;
+}
+
+void Tokenizer::set_text(std::string text){
+    file = text;
+    cur_file_text = &file;
+    cur_filename = "(no file)";
 }
 
 std::vector<Tokenizer::token> Tokenizer::annotate_positions(const std::vector<miniTokenizer::token>& tokens){

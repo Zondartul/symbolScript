@@ -36,7 +36,7 @@ template<typename T> class Span_const{
     citer begin() const;
     citer end() const;
     template<typename K> bool operator==(const Span<K> &other) const;
-    template<typename K> bool operator==(Span_const<K> &other) const;
+    template<typename K> bool operator==(const Span_const<K> &other) const;
 };
 
 ///--------- implementation --------------
@@ -155,15 +155,17 @@ template<typename T>
 template<typename K> 
 bool 
 Span_const<T>::operator==(const Span<K> &other) const{
-    return *this == Span_const<K>(other);
+    const Span_const<K> c_other(other);
+    const Span_const<T>& c_this = *this;
+    return c_this == c_other;
 }
 
 template<typename T>
 template<typename K> 
 bool 
-Span_const<T>::operator==(Span_const<K> &other) const{
+Span_const<T>::operator==(const Span_const<K> &other) const{
     using iterT = citer;
-    using iterK = typename Span<K>::citer;
+    using iterK = typename Span_const<K>::citer;
 
     if(((void*)&vec == (void*)&other.vec) && (offs == other.offs) && (len == other.len)){
         return true;
