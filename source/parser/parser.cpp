@@ -292,7 +292,8 @@ AST MiniParser::parse_stack(v_AST &stack, v_rules rules, rseq ref_seq){
         AST res = stack_out.at(0);
         return res;
     }
-    else{ //if(stack2.size() != 1)
+    else{ 
+        //if(stack2.size() != 1)
         /// that's bad - syntax error
         //std::cout<< "MiniParser: syntax error." << std::endl;
         //print_stack(stack_out);
