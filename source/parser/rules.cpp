@@ -65,45 +65,45 @@ Parser::v_rules Parser::rules = {
      //    \      \----/
      //     \---------/
      
-     {{"\\if", "braced_sym", "statement"},         "*",     "if_block"},
+     {{"\\if", "braced_sym", "statement"},         "*",     "if_block"},    //0
      
-     {{"if_block"},                           "\\elif",      "SHIFT"},
-     {{"if_block", "\\elif", "statement"},         "*",     "elif_block"},
+     {{"if_block"},                           "\\elif",      "SHIFT"},      //1
+     {{"if_block", "\\elif", "statement"},         "*",     "elif_block"},  //2
      
-     {{"elif_block"},                         "\\elif", "SHIFT"},
-     {{"elif_block", "\\elif", "statement"},       "*",     "elif_block"},
+     {{"elif_block"},                         "\\elif", "SHIFT"},           //3
+     {{"elif_block", "\\elif", "statement"},       "*",     "elif_block"},  //4
      
-     {{"if_block"},                           "\\else",      "SHIFT"},
-     {{"if_block", "\\else", "statement"},         "*",     "if_else_block"},
+     {{"if_block"},                           "\\else",      "SHIFT"},      //5
+     {{"if_block", "\\else", "statement"},         "*",     "if_else_block"},//6
      
-     {{"elif_block", "\\else", "statement"},       "*",     "if_else_block"},
+     {{"elif_block", "\\else", "statement"},       "*",     "if_else_block"},//7
      
-     {{"if_block"},                           "*",      "statement"},
-     {{"elif_block"},                         "*",      "statement"},
-     {{"if_else_block"},                      "*",      "statement"},
+     {{"if_block"},                           "*",      "statement"},//8
+     {{"elif_block"},                         "*",      "statement"},//9
+     {{"if_else_block"},                      "*",      "statement"},//10
      
 
-     {{"\\(", "sym", "\\)"},                "*",     "braced_sym"},
-     {{"\\(", "sym_list", "\\)"},           "*",     "braced_sym_list"},
-      {{"sym", "\\,", "sym"},               "OP",    "SHIFT"},
-      {{"sym_list", "\\,", "sym"},          "OP",    "SHIFT"},
-      {{"sym", "\\,", "sym"},               "*",     "sym_list"},
-      {{"sym_list", "\\,", "sym"},          "*",     "sym_list"},
-    {{"\\:=", "sym"},                       "OP",    "SHIFT"},
-    {{"\\=", "sym"},                        "OP",    "SHIFT"},
-    {{"\\:=", "sym"},                       "\\[",   "SHIFT"},
-    {{"\\=", "sym"},                        "\\[",   "SHIFT"},
-    {{"sym", "\\:", "IDENT"},                 "*",     "type_hint"},
-    {{"type_hint"},                         "*",     "sym"},
-    {{"sym", "\\=", "sym"},                "\\;",   "assignment"},
-    {{"sym", "\\:=", "sym"},               "\\;",   "assignment"},
+     {{"\\(", "sym", "\\)"},                "*",     "braced_sym"},//11
+     {{"\\(", "sym_list", "\\)"},           "*",     "braced_sym_list"},//12
+      {{"sym", "\\,", "sym"},               "OP",    "SHIFT"},//13
+      {{"sym_list", "\\,", "sym"},          "OP",    "SHIFT"},//14
+      {{"sym", "\\,", "sym"},               "*",     "sym_list"},//15
+      {{"sym_list", "\\,", "sym"},          "*",     "sym_list"},//16
+    {{"\\:=", "sym"},                       "OP",    "SHIFT"},//17
+    {{"\\=", "sym"},                        "OP",    "SHIFT"},//18
+    {{"\\:=", "sym"},                       "\\[",   "SHIFT"},//19
+    {{"\\=", "sym"},                        "\\[",   "SHIFT"},//20
+    {{"sym", "\\:", "IDENT"},                 "*",     "type_hint"},//21
+    {{"type_hint"},                         "*",     "sym"},//22
+    {{"sym", "\\=", "sym"},                "\\;",   "assignment"},//23
+    {{"sym", "\\:=", "sym"},               "\\;",   "assignment"},//24
     //{{"sym", "\\=", "function_call"},      "\\;",   "assignment"},
     //{{"sym", "\\:=", "function_call"},     "\\;",   "assignment"},
-    {{"\\:=", "sym"},                       "*",     "vd_assignment"},
-    {{"\\=", "sym"},                        "*",     "vd_assignment"},
+    {{"\\:=", "sym"},                       "*",     "vd_assignment"},//25
+    {{"\\=", "sym"},                        "*",     "vd_assignment"},//26
     //{{"\\:=", "function_call"},             "\\;",   "vd_assignment"},
     //{{"\\=",  "function_call"},             "\\;",   "vd_assignment"},    
-    {{"\\--", "STRING"},                    "*",     "vd_description"},
+    {{"\\--", "STRING"},                    "*",     "vd_description"},//27
         /// collecting all the opts
         //{{"vd_type_hint"},                      "\\;",   "vd_options"},
         //{{"vd_type_hint"},                      "\\--",  "vd_options3"},
@@ -123,25 +123,25 @@ Parser::v_rules Parser::rules = {
 
         //{{"var_definition"},                    "\\;",   "statement"},
     //{{"assignment"},                        "\\;",   "statement"},
-    {{"assignment", "\\;"},                 "*",   "statement"},
+    {{"assignment", "\\;"},                 "*",   "statement"},//28
     /// ---------------
     /// function_call: sym '(' sym_list ')' ';'
-    {{"IDENT"},                             "\\(",   "SHIFT"},
-    {{"IDENT"},                             "*",     "sym"},
-    {{"\\(", "\\)"},                        "*",     "braces_empty"},
-    {{"IDENT", "braces_empty"},             "*",     "function_call"},
-    {{"IDENT", "braced_sym"},               "*",     "function_call"},
-    {{"IDENT", "braced_sym_list"},          "*",     "function_call"},
+    {{"IDENT"},                             "\\(",   "SHIFT"},//29
+    {{"IDENT"},                             "*",     "sym"},//30
+    {{"\\(", "\\)"},                        "*",     "braces_empty"},//31
+    {{"IDENT", "braces_empty"},             "*",     "function_call"},//32
+    {{"IDENT", "braced_sym"},               "*",     "function_call"},//33
+    {{"IDENT", "braced_sym_list"},          "*",     "function_call"},//34
     /// ---------------
     /// array: '[' sym_list ']'
-    {{"\\[", "\\]"},                        "*",     "array"},
-    {{"\\[","sym","\\]"},                   "*",     "array"},
-    {{"\\[", "sym_list", "\\]"},            "*",     "array"},
-    {{"ARRAY", "array"},                    "*",     "array_constr"}, /// array constructor
-    {{"array_constr"},                      "*",     "sym"},
+    {{"\\[", "\\]"},                        "*",     "array"},//35
+    {{"\\[","sym","\\]"},                   "*",     "array"},//36
+    {{"\\[", "sym_list", "\\]"},            "*",     "array"},//37
+    {{"ARRAY", "array"},                    "*",     "array_constr"}, //38 /// array constructor
+    {{"array_constr"},                      "*",     "sym"},//39
     /// array_list: [array (',' array)]
-    {{"array", "\\,", "array"},             "*",     "array_list"},
-    {{"array_list", "\\,", "array"},        "*",     "array_list"},
+    {{"array", "\\,", "array"},             "*",     "array_list"},//40
+    {{"array_list", "\\,", "array"},        "*",     "array_list"},//41
         /// vector_constr: 'vector' array
         //{{"VECTOR", "array"},                   "*",     "vector_constr"},
         //{{"vector_constr"},                     "*",     "sym"},
@@ -151,25 +151,26 @@ Parser::v_rules Parser::rules = {
         //{{"MATRIX", "\\[", "array_list", "\\]"},"*",     "matrix_constr"}, // n-by-m
         //{{"matrix_constr"},                     "*",     "sym"},
         /// command_constr: '{' command* '}'
-    {{"\\{", "command_list", "\\}"},        "*",     "command_constr"},
-        {{"statement", "statement"},        "*",     "command_list"},
-        {{"command_list", "statement"},     "*",     "command_list"},
+    {{"\\{", "command_list", "\\}"},        "*",     "command_constr"},//42
+        {{"statement", "statement"},        "*",     "command_list"},//43
+        {{"command_list", "statement"},     "*",     "command_list"},//44
     /// sym is every expression except raw IDENT
-    {{"NUMBER"},                            "*",     "sym"}, /// 123
-    {{"STRING"},                            "*",     "sym"}, /// "abc"
-    {{"{}"},                                "*",     "sym"}, /// { cmd1; cmd2; } /// need to parse things inside btw
-    {{"sym", "OP", "sym"},                  "\\[",   "SHIFT"}, /// a+ b[...] SHIFT
-    {{"sym", "OP", "sym"},                  "*",     "sym"}, /// a+b
-    {{"OP", "sym"},                         "*",     "sym"}, /// -a
-    {{"braced_sym"},                        "*",     "sym"}, /// (a+b)
-    {{"function_call"},                     "*",     "sym"}, /// foo(a,b,c)
-    {{"sym", "array"},                      "*",     "sym"}, /// a[b] = c[d]
+    {{"NUMBER"},                            "*",     "sym"},//45 /// 123
+    {{"STRING"},                            "*",     "sym"},//46 /// "abc"
+    {{"{}"},                                "*",     "sym"},//47 /// { cmd1; cmd2; } /// need to parse things inside btw
+    {{"sym", "OP", "sym"},                  "\\[",   "SHIFT"},//48 /// a+ b[...] SHIFT
+    {{"sym", "OP", "sym"},                  "*",     "sym"},//49 /// a+b
+    {{"OP", "sym"},                         "*",     "sym"},//50 /// -a
+    {{"\\if", "braced_sym"},                "*",     "SHIFT"},//51 /// if(a)...
+    {{"braced_sym"},                        "*",     "sym"},//52 /// (a+b)
+    {{"function_call"},                     "*",     "sym"},//53 /// foo(a,b,c)
+    {{"sym", "array"},                      "*",     "sym"},//54 /// a[b] = c[d]
     //{{"sym"},                               "\\;",   "statement"}, /// e.g. if it's a function call
-    {{"sym", "\\;"},                        "*",     "statement"}, /// e.g. if it's a function call
+    {{"sym", "\\;"},                        "*",     "statement"},//55 /// e.g. if it's a function call
     
-    {{"statement"},                         "*",     "statement_list"},
+    {{"statement_list", "statement"},       "*",     "statement_list"},//56
+    {{"statement"},                         "*",     "statement_list"},//57
     //{{"statement_list", "statement_list"},  "*",     "statement_list"},
-    {{"statement_list", "statement"},       "*",     "statement_list"},
     ///-------------------
     
 };
@@ -183,8 +184,8 @@ std::vector<std::pair<std::string, Parser::AST>> Parser::tests = {
                     ast("\\="),
                     ast("sym",{ast("IDENT")})
                 }), 
+                ast("\\;")
             }),
-            ast("\\;")
         })
     },
     {"B := 5+4*3+(2*1.5);", 
@@ -216,7 +217,8 @@ std::vector<std::pair<std::string, Parser::AST>> Parser::tests = {
                             })
                         })
                     })
-                })
+                }),
+                ast("\\;")
             })
         })
     },
@@ -265,7 +267,7 @@ std::vector<std::pair<std::string, Parser::AST>> Parser::tests = {
     {"if(A) print(B);", 
         ast("statement_list",{
             ast("statement",{
-                ast("if-block",{
+                ast("if_block",{
                     ast("\\if"),
                     ast("braced_sym",{
                         ast("\\("),
@@ -278,7 +280,7 @@ std::vector<std::pair<std::string, Parser::AST>> Parser::tests = {
                                 ast("IDENT"),
                                 ast("braced_sym",{
                                     ast("\\("),
-                                    ast("sym",{ast("STRING")}),
+                                    ast("sym",{ast("IDENT")}),
                                     ast("\\)")
                                 })
                             })

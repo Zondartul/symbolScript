@@ -178,24 +178,24 @@ std::string stack_and_lookahead_to_str(const v_AST &stack, AST lookahead){
 }
 
 int MiniParser::get_next_rule_id(const v_AST &stack, AST lookahead, const v_rules& rules){
-    std::cout << "get_next_rule(" << stack_and_lookahead_to_str(stack, lookahead) << "):" << std::endl;
+    //std::cout << "get_next_rule(" << stack_and_lookahead_to_str(stack, lookahead) << "):" << std::endl;
     should_shift = false;
     for(unsigned int i = 0; i < rules.size(); i++){
         auto rule = rules.at(i);
-        std::cout << "-is rule " << i << "? [" << stack_and_lookahead_to_str(rule.previous, rule.lookahead) << "] ";
+        //std::cout << "-is rule " << i << "? [" << stack_and_lookahead_to_str(rule.previous, rule.lookahead) << "] ";
         if(does_rule_match(stack, lookahead, rules.at(i))){
-            std::cout << "yes ";
+            //std::cout << "yes ";
             if(should_shift){
-                std::cout << "(shift)" << std::endl;
+                //std::cout << "(shift)" << std::endl;
                 return RULEID_SHIFT;
             }else{
-                std::cout << i << std::endl;
+                //std::cout << i << std::endl;
                 return i;
             }
         }
-        std::cout << "no" << std::endl;
+        //std::cout << "no" << std::endl;
     }
-    std::cout << "-no next rule " << RULEID_NONE << std::endl;
+    //std::cout << "-no next rule " << RULEID_NONE << std::endl;
     return RULEID_NONE;
 }
 
@@ -271,9 +271,9 @@ AST MiniParser::parse_stack(v_AST &stack, v_rules rules, rseq ref_seq){
         int rule_id = get_next_rule_id(stack_out, lookahead, rules);
 
         while(rule_id != RULEID_NONE){
+            if(rule_id == RULEID_SHIFT){break;}
             check_reference_sequence(ref_seq, seq_I, rule_id, parse_seq);
             seq_I++;
-            if(rule_id == RULEID_SHIFT){break;}
             apply_rule(stack_out, rules.at(rule_id));
             parse_seq.push_back(rule_id);
             n_applied_total++;
@@ -304,14 +304,27 @@ AST MiniParser::parse_stack(v_AST &stack, v_rules rules, rseq ref_seq){
         if(stack_out.size() > 2){
             /// the second token is probably the
             /// cause of error
-            const AST &bad_ast = stack_out.back();//stack_out.at(1);
-            const token &bad_tok = get_left_leaf(bad_ast).tok;
-           
-            int line = bad_tok.pos1.line;
-            if(line != -1){
-                ss << "at line " << line << ": ";
+        //    const AST &bad_ast = stack_out.back();//stack_out.at(1);
+        //    const token &bad_tok = get_left_leaf(bad_ast).tok;
+        //   
+        //    int line = bad_tok.pos1.line;
+        //    if(line != -1){
+        //        ss << "at line " << line << ": ";
+        //    }
+        //    ss << " unexpected token [" << bad_tok << "]";
+
+            auto get_pos = [](const AST& bad_ast)->int{
+                const token &bad_tok = get_left_leaf(bad_ast).tok;
+                int line = bad_tok.pos1.line;
+                return line;
+            };
+
+            ss << "printing parser stack:\n";
+            for(auto i = 0; i < stack_out.size(); i++){
+                auto &ast = stack_out.at(i);
+                ss << "[stack " << i << " @ line " << get_pos(ast) << "]: " << ast << "\n";
             }
-            ss << " unexpected token [" << bad_tok << "]";
+
         }
         if(ref_seq){
             ss << "Reference sequence: [";
@@ -453,7 +466,25 @@ AST Parser::process(v_tokens tokens, std::optional<AST> parse_template){
 }
 
 std::ostream& operator<<(std::ostream& stream, Tokenizer::token tok){
-    return stream << "[" << tok.text << "]:" << tok.type;
+    if(tok.text.empty()){
+        return stream << tok.type;
+    }else{
+        return stream << "[" << tok.text << "]:" << tok.type;
+    }
+}
+
+std::ostream& operator<<(std::ostream& stream, MiniParser::AST ast){
+    stream << ast.tok;
+    if(ast.children.size()){
+        stream << "(";
+        for(auto I = ast.children.begin(); I != ast.children.end(); I++){
+            auto &ch = *I; bool last = ((I+1) == ast.children.end());
+            stream << ch;
+            if(!last){stream << ",";}
+        }
+        stream << ")";
+    }
+    return stream;
 }
 
 void Parser::parse_braces(AST &ast){

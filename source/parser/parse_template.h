@@ -1,6 +1,7 @@
 #include "parser/parser.h"
 
 Parser::AST ast(std::string name, std::vector<Parser::AST> children={});
+Parser::AST ast_literal(std::string text);
 bool rule_matches_template(MiniParser::rule R, Parser::AST templ);
 int get_rule_index(const std::vector<MiniParser::rule>& rules, const Parser::AST& templ);
 // -1 means SHIFT next token onto stack

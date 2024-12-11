@@ -84,32 +84,36 @@ class Compiler{
     Parser::AST ast;
     std::optional<Parser::AST> parse_template;
 
-    void tokenize_begin(cfg_compile cfg){
+    void tokenize(cfg_compile cfg){
         tokenizer.reset();
+        // prepare input
         assert(cfg.file_in.length() || cfg.text_in.length());
         if(cfg.file_in.length()){tokenizer.open_file(cfg.file_in);}
         else                    {tokenizer.set_text(cfg.text_in);}
+        // load input
         tokenizer.load();
-    }
-    void tokenize_end(cfg_compile cfg){
+        // optional intermediate outputs
+        if(cfg.do_output_tokens){
+            auto toks_out = out.tokens_to_json(tokenizer.tokens);
+            out.write_file(cfg.json_out_toks, toks_out);
+        }
+        // remove comments etc
         tokenizer.tokens = tokenizer.erase_token_type(tokenizer.tokens, {"COMMENT", "SP", "NL"});
     }
-    void tokenize_output(cfg_compile cfg){
-        auto toks_out = out.tokens_to_json(tokenizer.tokens);
-        out.write_file(cfg.json_out_toks, toks_out);
-    }
     void parse(cfg_compile cfg){
+        /// go from Tokens to AST
         ast = parser.process(tokenizer.tokens, parse_template);
-    }
-    void parse_output(cfg_compile cfg){
-        auto ast_pretty = ast_unroll_lists(ast);
-        ast_pretty = ast_merge_singles(ast_pretty);
-        calc_NT_positions(ast_pretty);
-        auto ast_out = out.ast_to_json(ast_pretty);
-        out.write_file(cfg.json_out_ast, ast_out);
+        /// optional intermediate outputs
+        if(cfg.do_output_parse){
+            auto ast_pretty = ast_unroll_lists(ast);
+            ast_pretty = ast_merge_singles(ast_pretty);
+            calc_NT_positions(ast_pretty);
+            auto ast_out = out.ast_to_json(ast_pretty);
+            out.write_file(cfg.json_out_ast, ast_out);
+        }
     }
     void run(cfg_compile cfg){
-        if(cfg.do_test_parse){           /// run tests
+        if(cfg.do_test_parse){                  /// run tests
             test_parse(cfg);
         }
         if(cfg.do_normal_compile){               /// compile cli input file
@@ -118,13 +122,10 @@ class Compiler{
     }
     void basic_run(cfg_compile cfg){
         if(!(cfg.do_stage_tokens)){return;}
-        tokenize_begin(cfg);
-        if(cfg.do_output_tokens){tokenize_output(cfg);}
-        tokenize_end(cfg);
+        tokenize(cfg);
 
         if(!(cfg.do_stage_parse)){return;}
         parse(cfg);
-        if(cfg.do_output_parse){parse_output(cfg);}
     }
     void test_parse(cfg_compile cfg){
         auto cfg2 = cfg;
@@ -154,6 +155,7 @@ void compile(){
     cfg.do_test_parse = true;
     cfg.json_out_toks = "data_out/tokens.json";
     cfg.json_out_ast  = "data_out/ast.json";
+
     Compiler compiler;
     compiler.run(cfg);
 }

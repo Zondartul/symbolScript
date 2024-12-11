@@ -39,6 +39,7 @@ class MiniParser{
 };
 
 std::ostream& operator<<(std::ostream& stream, Tokenizer::token tok);
+std::ostream& operator<<(std::ostream& stream, MiniParser::AST ast);
 
 class Parser{
     public:
