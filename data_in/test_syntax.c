@@ -9,17 +9,17 @@ C = 10 + sqrt(A);   // function as part of expression
 
 if(A) print("B");
 
-//if(A){
-//    print("B");
-//}
+if(A){
+    print("B");
+}
 
-//if(A){
-//    print("B");
-//}else{
-//    print("C");
-//}
+if(A){
+    print("B");
+}else{
+    print("C");
+}
 
-/*
+
 // if-block
 if(A){
     print("A");
@@ -44,6 +44,9 @@ Arr[0] << Arr2[2]; // move command
 Arr[1] << 40;
 Arr := Arr .* Arr2; /// replaces the symbolic value by evaluated ground value
 
+/// next: defining functions
+
+/* ground value stuff
 x = {
     if(x?){ // has ground value? -> returns value if it is known, else null
         x? := x?+1; // ground value can be assigned to -> this changes the value stored in the symbol

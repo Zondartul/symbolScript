@@ -17,4 +17,8 @@
         --- template rule doesn't match any rule - create new rule
 [IDEA 2] generate grammar from multiple parse templates        
 
+[todo 3] syntax for defining functions
+[IDEA 4] count how many rules could possibly apply in the future
+        -- if the second stack AST can never be consumed by a future rule, we have a syntax error at the latest consumed token
+
 */

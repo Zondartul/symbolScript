@@ -7,7 +7,7 @@
 #include "util/output.h"
 //#include "parser/analyzer.h"
 #include "parser/parse_template.h"
-
+#include <functional>
 /// ---- MiniParser ---------------------------
 
 using AST = MiniParser::AST;
@@ -199,6 +199,178 @@ int MiniParser::get_next_rule_id(const v_AST &stack, AST lookahead, const v_rule
     return RULEID_NONE;
 }
 
+/// -------------------------------- BEGIN CPFR Algo (count possible future rules (to complete the program)) ----------------
+
+typedef unsigned int uint;
+
+/// reverse iterator to paired ranges 
+
+template<typename Ta, typename Tb> struct rzip_unpack{
+    Ta::value_type &a;
+    Tb::value_type &b;
+    int idx;
+};
+
+template<typename Ta, typename Tb> struct rzip_iter{
+    Ta::reverse_iterator a;
+    Tb::reverse_iterator b;
+    int idx;
+
+    rzip_iter &operator++(){
+        return rzip_iter{++a,++b,--idx};
+    }
+    rzip_iter operator++(int){
+        return rzip_iter{a++,b++,idx--};
+    }
+    bool operator!=(const rzip_iter& other) const{
+        return !(*this == other);
+    }
+    bool operator==(const rzip_iter& other) const{
+        return (a == other.a) && (b == other.b) && (idx == other.idx);
+    }
+    rzip_unpack<Ta,Tb> operator*(){
+        return rzip_unpack{*a,*b,idx};
+    }
+};
+
+template<typename Ta, typename Tb> struct rzip_holder{
+    Ta &a;
+    Tb &b;
+    rzip_iter<Ta,Tb> begin(){
+        return rzip_iter{a.rbegin(), b.rbegin(), a.size()-1};
+    }
+    rzip_iter<Ta,Tb> end(){
+        return rzip_iter{a.rend(), b.rend(), 0};
+    }
+};
+
+template<typename Ta, typename Tb> rzip_holder<Ta, Tb> rzip(Ta &a, Tb &b){
+    assert(a.size() == b.size());
+    return rzip_holder{a,b};
+}
+
+int max(int A, int B){return (A > B)? A : B;}
+
+uint longest_rule_length(const v_rules& rules){
+    uint len = 0;
+    for(auto &rule:rules){
+        len = max(rule.previous.size(), len);
+    }
+    return len;
+}
+
+//std::string get_tok_name(token tok){
+//    return (tok.type == "")? "\\"+tok.text : tok.type;
+//}
+
+AST tok_to_ast(token tok){
+    AST res;
+    res.tok = tok;
+    return res;
+}
+
+v_AST cpfr_prepare_stack(const v_AST &stack, AST sym, uint idx, uint max_rule_len){
+    v_AST res;                         /// the new stack consists of:
+    for(uint i = 0; i < idx; i++){
+        res.push_back(stack.at(i));    /// ... original stack up to idx
+    }   
+    res.push_back(sym);                /// ... the requested symbol
+    while(max_rule_len--){
+        res.push_back(ast("*"));       /// ... and a number of "any" tokens
+    }                 
+    return res;
+}
+
+void cpfr_attempt_stack(const v_AST &stack, uint idx, const v_rules& rules, std::vector<std::set<token>> &sets_out){
+    /// add reductions to this set, prev set, prev prev etc.
+    for(auto &rule:rules){                                                      /// check all 50+ rules
+        auto rule_size = rule.previous.size();
+        for(int offset = max(rule_size, stack.size()); offset >= 0; offset--){  /// we do a convolution of the rule tokens vs stack tokens
+            int start_idx = idx - offset;
+            Span_const<std::string> rule_span(rule.previous);
+            Span_const<AST> stack_span(stack, start_idx, rule_size);
+            if(rule_span == stack_span){                                        /// if a shifted rule matches, the result of the rule (reduction)
+                auto res = token(rule.tok);
+                sets_out.at(start_idx).insert(res);                     /// is added to the replacement set at the position to which we shifted.
+            }
+        }
+    }   
+}
+
+void cpfr_attempt_sym(const v_AST &stack, const v_rules &rules, std::vector<std::set<token>> &sets, AST sym, uint idx, uint rule_len){
+    auto as_if_stack = cpfr_prepare_stack(stack, sym, idx, rule_len);
+    cpfr_attempt_stack(as_if_stack, idx, rules, sets);
+}
+
+/// calls the function with every element of a set as argument,
+/// given that the function may add or remove elements in the middle of execution.
+/// stops running when the set runs out of unvisited elements.
+template<typename T> void run_for_old_and_new_set_elements(std::set<T> &set, std::function<void(T)> foo){
+    std::set<T> visited;
+    while(true){
+        auto I = std::find_if(set.begin(), set.end(), [&](const T& val)->bool{return !visited.count(val);});
+        if(I == set.end()){break;}
+        foo(*I);
+        visited.insert(*I);
+    }
+}
+
+
+/// checks if any of the future rules can possibly reduce the AST to "start" ("program") token.
+/// true: there is some possible future input by the user such that the source code parses correctly
+/// false: the parser is jammed by an unexpected token
+bool count_possible_future_rules(const v_AST &stack, /*AST lookahead,*/ const v_rules& rules){ // lookahead symbol is unused
+    const uint rule_len = longest_rule_length(rules);
+    std::vector<std::set<token>> sets(stack.size());
+
+    for(auto [sym,set,idx]:rzip(stack, sets)){
+        set.insert(sym.tok);
+        std::function<void(token)> lmb_attempt_sym = [&](token arg){cpfr_attempt_sym(stack, rules, sets, tok_to_ast(arg), idx, rule_len);};
+        
+        lmb_attempt_sym(sym.tok);
+        run_for_old_and_new_set_elements(set, lmb_attempt_sym);
+    }
+
+    return sets.front().count(token("program"));
+}
+
+    /// count_possible_future_rules ponder:
+        /// not sure if this is even solvable
+        /// A B C D - good
+        ///  A B... A B E... A B E F... A B C... A B C K... A B C K G... A B C D ... A E.... X
+        /// A C D B - bad
+        ///  A C... A C D... A C D B... A C K ... no rules.
+        /// maybe build a "reachability tree" that contains all (unexpanded) possible completions
+        ///  and then prune branches that can't be
+        /// first of all, why don't we have Rules in a tree or a graph? we should grab that.
+        /// it's going to be cyclic though.
+        
+        /// Here is an algorythm to calculate whether the current stack is valid (has a possible future).
+        /// We only need to run it when we encounter an error - we go back to our stack and calculate.
+        ///
+        /// 1. any symbol can be added after the current stack (by adding all it's components)
+        ///         ... except some previous symbols might force a shift...
+        /// 2. a subset N of all rules can consume stack[1]
+        ///     of these rules, n rules can be applied as-is by adding the appropriate symbols (i.e. simply possible future rules, SPFR)
+        ///     other M rules conflict with the next few symbols
+        /// 3. For the next symbol, stack[I+1], another subset of rules can consume them, producing a set of possible tokens.
+        /// actually, lets start from the end.
+        /// 3b. The last symbol, stack[E-1], can be reduced (either alone or with other previous symbols) if the correct future symbols are added.
+        ///     this reducting replaces the last symbol (and possible earlier symbols) with a different symbol.
+        ///     For each position, this creates a set of possible replacement sybmols.
+        /// 4. We treat each "replacement" symbol as though it becomes the new tail (assuming the symbols after it disappear),
+        ///     because the new symbol can only appear during a reduction.
+        ///     therefore each symbol is a possible future tail. We therefore deal with multiple possible future stacks,
+        ///     some of them might be shorter.
+        /// 5. We move to previous symbol, stack[E-2], and for it and all the symbols in the set of replacements so far, repeat (3b)
+        ///     to populate the previous sets with possible symbols.
+        /// 6. Repeat until we got to the replacements of the initial symbol (stack[0]). If the set is non-empty, that means stack[1] can still be reduced.
+        ///     and the current stack is still valid and has a future.
+        /// 7. If the initial symbol has an empty replacement set, and there is still un-reduced input, that means the last added symbol is a syntax error.
+
+
+/// --------------------------------------- END CPFR Algo ---------------------------------------------
+
 v_AST MiniParser::tokens_to_stack(v_tokens tokens){
     std::vector<AST> stack;
     for(auto tok:tokens){
@@ -265,6 +437,10 @@ AST MiniParser::parse_stack(v_AST &stack, v_rules rules, rseq ref_seq){
         AST node = stack[I];
         stack_out.push_back(node);
         AST lookahead = ((I+1) < stack.size()) ? stack[I+1] : tok_semicolon;
+        int n_futures = count_possible_future_rules(stack_out, lookahead, rules);
+        if(stack_out.size() >= 2 && n_futures == 0){
+            goto lbl_syntax_error;
+        }
         //std::cout << "node ["; print_AST(node); std::cout << "], ["; print_AST(lookahead); std::cout << "]" << std::endl;
         //try_apply_rules(stack_out, lookahead, rules);
         bool retry = false;
@@ -293,6 +469,7 @@ AST MiniParser::parse_stack(v_AST &stack, v_rules rules, rseq ref_seq){
         return res;
     }
     else{ 
+        lbl_syntax_error:
         //if(stack2.size() != 1)
         /// that's bad - syntax error
         //std::cout<< "MiniParser: syntax error." << std::endl;
