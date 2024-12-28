@@ -32,6 +32,7 @@ class Tokenizer{
         int char_idx = -1;
         int line = -1; // -1 means uninitialized
         int col = -1;
+        bool operator<(const tok_pos& other) const;
     };
 
     struct token{
@@ -40,6 +41,7 @@ class Tokenizer{
         tok_pos pos1; //from
         tok_pos pos2; //to
         bool operator==(const token& other) const;
+        bool operator<(const token& other) const;
     };
 
     Tokenizer();

@@ -205,6 +205,109 @@ typedef unsigned int uint;
 
 /// reverse iterator to paired ranges 
 
+enum eContAccessType{ECAT_F, ECAT_CF, ECAT_R, ECAT_CR};
+
+template<typename T, eContAccessType cat> struct cont_types{
+    using cont = T;
+    using val = T::value_type;
+    using iter = T::iterator;
+    static iter begin(cont& container){assert(!"abstract called"); return container.begin();}
+    static iter end(cont& container){assert(!"abstract called"); return container.end();}
+};
+
+template<typename T> struct cont_types<T, ECAT_F>{
+    using cont = T;
+    using val = T::value_type;
+    using iter = T::iterator;
+    static iter begin(cont& container){return container.begin();}
+    static iter end(cont& container){return container.end();}
+};
+
+template<typename T> struct cont_types<T, ECAT_CF>{
+    using cont = const T;
+    using val = const T::value_type;
+    using iter = T::const_iterator;
+    static iter begin(cont& container){return container.cbegin();}
+    static iter end(cont& container){return container.cend();}
+};
+
+template<typename T> struct cont_types<T, ECAT_R>{
+    using cont = T;
+    using val = T::value_type;
+    using iter = T::reverse_iterator;
+    static iter begin(cont& container){return container.rbegin();}
+    static iter end(cont& container){return container.rend();}
+};
+
+template<typename T> struct cont_types<T, ECAT_CR>{
+    using cont = const T;
+    using val = const T::value_type;
+    using iter = T::const_reverse_iterator;
+    static iter begin(cont& container){return container.crbegin();}
+    static iter end(cont& container){return container.crend();}
+};
+
+template<typename CTa, typename CTb> struct zip_unpack{
+    CTa::val &a;
+    CTb::val &b;
+    int idx;
+};
+
+template<typename CTa, typename CTb> struct zip_iter{
+    CTa::iter a;
+    CTb::iter b;
+    int idx;
+
+    zip_iter &operator++(){
+        ++a; ++b; --idx;
+        return *this;//rzip_iter{++a,++b,--idx};
+    }
+    zip_iter operator++(int){
+        return zip_iter{a++,b++,idx--};
+    }
+    bool operator!=(const zip_iter& other) const{
+        return !(*this == other);
+    }
+    bool operator==(const zip_iter& other) const{
+        return (a == other.a) && (b == other.b) && (idx == other.idx);
+    }
+    zip_unpack<CTa,CTb> operator*(){
+        return zip_unpack<CTa, CTb>{*a,*b,idx};
+    }
+};
+
+template<typename CTa, typename CTb> struct zip_holder{
+    CTa::cont &a;
+    CTb::cont &b;
+    zip_iter<CTa,CTb> begin(){
+        return zip_iter<CTa, CTb>{CTa::begin(a), CTb::begin(b), a.size()-1};
+    }
+    zip_iter<CTa,CTb> end(){
+        return zip_iter<CTa, CTb>{CTa::end(a), CTb::end(b), 0};
+    }
+};
+
+
+template<typename Ta, typename Tb> zip_holder<cont_types<Ta, ECAT_F>,  cont_types<Tb, ECAT_F>>  zip(      Ta &a,       Tb &b)
+{assert(a.size() == b.size());return zip_holder<cont_types<Ta, ECAT_F>,  cont_types<Tb, ECAT_F>>{a,b};}
+template<typename Ta, typename Tb> zip_holder<cont_types<Ta, ECAT_CF>, cont_types<Tb, ECAT_F>>  zip(const Ta &a,       Tb &b)
+{assert(a.size() == b.size());return zip_holder<cont_types<Ta, ECAT_CF>, cont_types<Tb, ECAT_F>>{a,b};}
+template<typename Ta, typename Tb> zip_holder<cont_types<Ta, ECAT_F>,  cont_types<Tb, ECAT_CF>> zip(      Ta &a, const Tb &b)
+{assert(a.size() == b.size());return zip_holder<cont_types<Ta, ECAT_F>,  cont_types<Tb, ECAT_CF>>{a,b};}
+template<typename Ta, typename Tb> zip_holder<cont_types<Ta, ECAT_CF>, cont_types<Tb, ECAT_CF>> zip(const Ta &a, const Tb &b)
+{assert(a.size() == b.size());return zip_holder<cont_types<Ta, ECAT_CF>, cont_types<Tb, ECAT_CF>>{a,b};}
+
+template<typename Ta, typename Tb> zip_holder<cont_types<Ta, ECAT_R>,  cont_types<Tb, ECAT_R>>  rzip(      Ta &a,       Tb &b)
+{assert(a.size() == b.size());return zip_holder<cont_types<Ta, ECAT_R>,  cont_types<Tb, ECAT_R>>{a,b};}
+template<typename Ta, typename Tb> zip_holder<cont_types<Ta, ECAT_CR>, cont_types<Tb, ECAT_R>>  rzip(const Ta &a,       Tb &b)
+{assert(a.size() == b.size());return zip_holder<cont_types<Ta, ECAT_CR>, cont_types<Tb, ECAT_R>>{a,b};}
+template<typename Ta, typename Tb> zip_holder<cont_types<Ta, ECAT_R>,  cont_types<Tb, ECAT_CR>> rzip(      Ta &a, const Tb &b)
+{assert(a.size() == b.size());return zip_holder<cont_types<Ta, ECAT_R>,  cont_types<Tb, ECAT_CR>>{a,b};}
+template<typename Ta, typename Tb> zip_holder<cont_types<Ta, ECAT_CR>, cont_types<Tb, ECAT_CR>> rzip(const Ta &a, const Tb &b)
+{assert(a.size() == b.size());return zip_holder<cont_types<Ta, ECAT_CR>, cont_types<Tb, ECAT_CR>>{a,b};}
+
+
+/*
 template<typename Ta, typename Tb> struct rzip_unpack{
     Ta::value_type &a;
     Tb::value_type &b;
@@ -217,7 +320,8 @@ template<typename Ta, typename Tb> struct rzip_iter{
     int idx;
 
     rzip_iter &operator++(){
-        return rzip_iter{++a,++b,--idx};
+        ++a; ++b; --idx;
+        return *this;//rzip_iter{++a,++b,--idx};
     }
     rzip_iter operator++(int){
         return rzip_iter{a++,b++,idx--};
@@ -248,8 +352,69 @@ template<typename Ta, typename Tb> rzip_holder<Ta, Tb> rzip(Ta &a, Tb &b){
     assert(a.size() == b.size());
     return rzip_holder{a,b};
 }
+*/
+///-----------------------------
+/*
+template<typename Ta, typename Tb> struct crzip_unpack{
+    const Ta::value_type &a;
+    const Tb::value_type &b;
+    int idx;
+    //crzip_unpack(
+    //    const Ta::value_type &a,
+    //    const Tb::value_type &b,
+    //    int idx
+    //):a(a),b(b),idx(idx){}
+};
+
+template<typename Ta, typename Tb> struct crzip_iter{
+    Ta::const_reverse_iterator a;
+    Tb::const_reverse_iterator b;
+    int idx;
+
+    crzip_iter &operator++(){
+        ++a; ++b; --idx;
+        return *this;//crzip_iter{++a,++b,--idx};
+    }
+    crzip_iter operator++(int){
+        return crzip_iter{a++,b++,idx--};
+    }
+    bool operator!=(const crzip_iter& other) const{
+        return !(*this == other);
+    }
+    bool operator==(const crzip_iter& other) const{
+        return (a == other.a) && (b == other.b) && (idx == other.idx);
+    }
+    crzip_unpack<Ta,Tb> operator*(){
+        return crzip_unpack<Ta,Tb>{*a,*b,idx};
+    }
+};
+
+template<typename Ta, typename Tb> struct crzip_holder{
+    const Ta &a;
+    const Tb &b;
+    crzip_iter<Ta,Tb> begin(){
+        return crzip_iter<Ta,Tb>{a.crbegin(), b.crbegin(), a.size()-1};
+    }
+    crzip_iter<Ta,Tb> end(){
+        return crzip_iter<Ta,Tb>{a.crend(), b.crend(), 0};
+    }
+};
+*/
+//template<typename Ta, typename Tb> crzip_holder<Ta, Tb> rzip(const Ta &a, const Tb &b){
+//    assert(a.size() == b.size());
+//    return crzip_holder<Ta,Tb>{a,b};
+//}
+///------------------
+///---------------- half-const implementation
+//template<typename Ta, typename Tb> hcrzip_holder<Ta, Tb> rzip(const Ta &a, Tb &b){
+//    assert(a.size() == b.size());
+//    return hcrzip_holder<Ta,Tb>{a,b};
+//}
+///------------------
+
 
 int max(int A, int B){return (A > B)? A : B;}
+int min(int A, int B){return (A < B)? A : B;}
 
 uint longest_rule_length(const v_rules& rules){
     uint len = 0;
@@ -285,7 +450,7 @@ void cpfr_attempt_stack(const v_AST &stack, uint idx, const v_rules& rules, std:
     /// add reductions to this set, prev set, prev prev etc.
     for(auto &rule:rules){                                                      /// check all 50+ rules
         auto rule_size = rule.previous.size();
-        for(int offset = max(rule_size, stack.size()); offset >= 0; offset--){  /// we do a convolution of the rule tokens vs stack tokens
+        for(int offset = min(idx, max(rule_size, stack.size())); offset >= 0; offset--){  /// we do a convolution of the rule tokens vs stack tokens
             int start_idx = idx - offset;
             Span_const<std::string> rule_span(rule.previous);
             Span_const<AST> stack_span(stack, start_idx, rule_size);
@@ -316,12 +481,13 @@ template<typename T> void run_for_old_and_new_set_elements(std::set<T> &set, std
 }
 
 
+typedef std::set<token> tokset;
 /// checks if any of the future rules can possibly reduce the AST to "start" ("program") token.
 /// true: there is some possible future input by the user such that the source code parses correctly
 /// false: the parser is jammed by an unexpected token
 bool count_possible_future_rules(const v_AST &stack, /*AST lookahead,*/ const v_rules& rules){ // lookahead symbol is unused
     const uint rule_len = longest_rule_length(rules);
-    std::vector<std::set<token>> sets(stack.size());
+    std::vector<tokset> sets(stack.size());
 
     for(auto [sym,set,idx]:rzip(stack, sets)){
         set.insert(sym.tok);
@@ -437,7 +603,7 @@ AST MiniParser::parse_stack(v_AST &stack, v_rules rules, rseq ref_seq){
         AST node = stack[I];
         stack_out.push_back(node);
         AST lookahead = ((I+1) < stack.size()) ? stack[I+1] : tok_semicolon;
-        int n_futures = count_possible_future_rules(stack_out, lookahead, rules);
+        int n_futures = count_possible_future_rules(stack_out, rules);
         if(stack_out.size() >= 2 && n_futures == 0){
             goto lbl_syntax_error;
         }

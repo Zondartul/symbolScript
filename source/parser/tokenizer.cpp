@@ -65,8 +65,23 @@ std::string& FileStore::open_file(std::string filename){
 ///---------------- Tokenizer ------------------------------
 std::string Tokenizer::cur_filename;
 
+typedef Tokenizer::tok_pos                  tok_pos;
 typedef Tokenizer::token                    token;
 typedef std::vector<Tokenizer::token>       v_tokens;
+
+bool tok_pos::operator<(const tok_pos& other) const{
+    if(filename < other.filename){return true;}
+    else if(filename == other.filename){
+        if(line < other.line){return true;}
+        else if(line == other.line){
+            if(col < other.col){return true;}
+            else if(col == other.col){
+                if(char_idx < other.char_idx){return true;}
+            }
+        }
+    }
+    return false;
+}
 
 bool token::operator==(const token& other) const{
     if((text != "") && (text[0] == '\\')){
@@ -76,6 +91,20 @@ bool token::operator==(const token& other) const{
     }else{
         return type == other.type;
     }
+}
+
+bool token::operator<(const token& other) const{
+    if(pos1 < other.pos1){return true;}
+    else if(pos1 == other.pos1){
+        if(pos2 < other.pos2){return true;}
+        else if(pos2 == other.pos2){
+            if(type < other.type){return true;}
+            else if(type == other.type){
+                if(text < other.text){return true;}
+            }
+        }
+    }
+    return false;
 }
 
 Tokenizer::Tokenizer(){}
