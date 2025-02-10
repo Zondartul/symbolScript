@@ -22,6 +22,7 @@ void output_intermediate_ast(v_AST stack);
 bool MiniParser::AST::operator==(std::string S) const{
     if(S == ""){return false;}
     if(S == "*"){return true;}
+    if(tok.type == "*"){return true;}
     if(S[0] == '\\'){
         return (tok.text == S.substr(1)) && (children.size() == 0);
     }else{
@@ -283,7 +284,7 @@ template<typename CTa, typename CTb> struct zip_holder{
         return zip_iter<CTa, CTb>{CTa::begin(a), CTb::begin(b), a.size()-1};
     }
     zip_iter<CTa,CTb> end(){
-        return zip_iter<CTa, CTb>{CTa::end(a), CTb::end(b), 0};
+        return zip_iter<CTa, CTb>{CTa::end(a), CTb::end(b), -1}; // idx[0] = ok, idx[-1] - one-past-the-end = end
     }
 };
 
@@ -434,6 +435,45 @@ AST tok_to_ast(token tok){
     return res;
 }
 
+std::string ssprint_with_delim_helper(std::vector<std::string> stuff, std::string delim){
+    std::stringstream ss;
+
+    auto begin = stuff.begin();
+    auto end = stuff.end();
+    for(auto I = begin; I != end; I++){
+        ss << *I;
+        if((I+1) != end){ss << delim;}
+    }
+    return ss.str();
+}
+
+template<typename T>
+std::string ssprint(T obj){std::stringstream ss; ss << obj; return ss.str();}
+
+template<typename T>
+std::string ssprint_with_delim(T vec, std::string delim){
+    std::vector<std::string> stuff; for(auto &thing:vec){stuff.push_back(ssprint(thing));}
+    return ssprint_with_delim_helper(stuff, delim);
+}
+
+void dbg_print_stack(const v_AST &stack){
+    std::cout << "stack [" << ssprint_with_delim(stack, ", ") << "]" << std::endl;
+}
+
+void dbg_print_one_set(const std::set<token> &ts){
+    std::cout << "set [" << ssprint_with_delim(ts, ", ") << "]" << std::endl;
+}
+
+void dbg_print_all_sets(const std::vector<std::set<token>> &sets){
+    std::cout << "(" << sets.size() << " sets){" << std::endl;
+    for(int i = 0; i < sets.size(); i++){
+        std::cout << "\t" << i << ": "; dbg_print_one_set(sets[i]);
+    }
+    std::cout << "}" << std::endl; 
+}
+
+
+
 v_AST cpfr_prepare_stack(const v_AST &stack, AST sym, uint idx, uint max_rule_len){
     v_AST res;                         /// the new stack consists of:
     for(uint i = 0; i < idx; i++){
@@ -447,23 +487,48 @@ v_AST cpfr_prepare_stack(const v_AST &stack, AST sym, uint idx, uint max_rule_le
 }
 
 void cpfr_attempt_stack(const v_AST &stack, uint idx, const v_rules& rules, std::vector<std::set<token>> &sets_out){
+    //std::cout << "   attempt stack(idx = " << idx << ")";
+    int max_rule_size = longest_rule_length(rules);
+    int max_init_offset = min(idx, max(max_rule_size, stack.size()));
+    //std::cout << ", offset from " << max_init_offset << "to 0 incl." << std::endl;
     /// add reductions to this set, prev set, prev prev etc.
-    for(auto &rule:rules){                                                      /// check all 50+ rules
-        auto rule_size = rule.previous.size();
-        for(int offset = min(idx, max(rule_size, stack.size())); offset >= 0; offset--){  /// we do a convolution of the rule tokens vs stack tokens
+    for(int offset = max_init_offset; offset >= 0; offset--){
+        //std::cout << "    try offset = " << offset << std::endl;
+        int i = 0;
+        for(auto &rule:rules){                                                      /// check all 50+ rules
+            auto rule_size = rule.previous.size();
+            int init_offset = min(idx, max(rule_size, stack.size()));
+            if(offset > init_offset){
+                //std::cout << "rule "<<i++<<"is too short" << std::endl; 
+                continue;}
+            //std::cout << "    try rule " << i++ << ":["<<rule<<"]\t";
             int start_idx = idx - offset;
             Span_const<std::string> rule_span(rule.previous);
             Span_const<AST> stack_span(stack, start_idx, rule_size);
-            if(rule_span == stack_span){                                        /// if a shifted rule matches, the result of the rule (reduction)
+            //std::cout << std::endl;
+            //std::cout << "     compare rule_span ["<< rule_span<<"]" << std::endl;
+            //std::cout << "     vs     stack_span ["<<stack_span<<"]" << std::endl;
+            if(stack_span==rule_span){//if(rule_span == stack_span){                                        /// if a shifted rule matches, the result of the rule (reduction)
                 auto res = token(rule.tok);
+                if(res.type == "SHIFT"){ 
+                    /// if we shift, then: 
+                    /// - there is an "any token" after this one
+                    /// -- but we are already assuming that
+                    /// - other rules do not match from this offset (move one index forward)
+                    //std::cout << "<match, SHIFTing> ";
+                    continue;
+                }
+                //std::cout << "<match, adding res ["<<res<<"]> ";
                 sets_out.at(start_idx).insert(res);                     /// is added to the replacement set at the position to which we shifted.
             }
+            //std::cout << std::endl;
         }
-    }   
+    }
 }
 
 void cpfr_attempt_sym(const v_AST &stack, const v_rules &rules, std::vector<std::set<token>> &sets, AST sym, uint idx, uint rule_len){
     auto as_if_stack = cpfr_prepare_stack(stack, sym, idx, rule_len);
+    //std::cout << "  attempt sym: new "; dbg_print_stack(as_if_stack);
     cpfr_attempt_stack(as_if_stack, idx, rules, sets);
 }
 
@@ -482,23 +547,41 @@ template<typename T> void run_for_old_and_new_set_elements(std::set<T> &set, std
 
 
 typedef std::set<token> tokset;
+token CPFR_target = token{"program"};
+
 /// checks if any of the future rules can possibly reduce the AST to "start" ("program") token.
 /// true: there is some possible future input by the user such that the source code parses correctly
 /// false: the parser is jammed by an unexpected token
 bool count_possible_future_rules(const v_AST &stack, /*AST lookahead,*/ const v_rules& rules){ // lookahead symbol is unused
     const uint rule_len = longest_rule_length(rules);
     std::vector<tokset> sets(stack.size());
+    //std::cout << "CPFR, begin. rule_len = " << rule_len << ";" << std::endl;
+    //dbg_print_stack(stack);
+    //dbg_print_all_sets(sets);
 
     for(auto [sym,set,idx]:rzip(stack, sets)){
+        //std::cout << " ---- loop ---- idx " << idx << std::endl;
+        //std::cout << "  CPFR add sym " << sym << std::endl;
         set.insert(sym.tok);
+        //dbg_print_all_sets(sets);
         std::function<void(token)> lmb_attempt_sym = [&](token arg){cpfr_attempt_sym(stack, rules, sets, tok_to_ast(arg), idx, rule_len);};
         
         lmb_attempt_sym(sym.tok);
         run_for_old_and_new_set_elements(set, lmb_attempt_sym);
+        //std::cout << " ---- endloop --- idx " << idx << std::endl;
     }
-
-    return sets.front().count(token("program"));
+    //std::cout << "loop done" << std::endl;
+    //dbg_print_all_sets(sets);
+    return sets.front().count(CPFR_target);//(token("program"));
 }
+    /// CPFR ponder #2 (06.02.2025)
+        /// - when SHIFT encountered, we can essentially have any terminal as the next symbol
+        /// - we might have to do breadth-first search over all possible programs
+        /// -- currently we are doing depth-first search (rly?) which may never terminate (expr. A+A+A+A...)
+        /// -- mitigation: re-order rules to "generate" shortest possible programs first
+        /// -- can we avoid that? prolly not in CPFR, maybe first-follow sets do something or not idk.
+        /// - Need the ability to select target top-level symbol - not all tests are "complete programs"
+        /// -- some are expressions or control structures e.g. unit-tests.
 
     /// count_possible_future_rules ponder:
         /// not sure if this is even solvable
@@ -599,19 +682,48 @@ AST MiniParser::parse_stack(v_AST &stack, v_rules rules, rseq ref_seq){
     std::vector<int> parse_seq; /// sequence of parse rule applications 
     int seq_I = 0;
 
+    if(ref_seq && ref_seq->size()){
+        auto last_rule_id = ref_seq->back();
+        auto &last_rule = rules[last_rule_id];
+        CPFR_target = token{last_rule.tok};
+        std::cout << "Parse_stack: CPFR target token is " << CPFR_target << std::endl;
+    }
+
+    int last_rule_id = 0;
+    int last_cpfr = 0;
     for(int I = 0; I < stack.size(); I++){
         AST node = stack[I];
         stack_out.push_back(node);
         AST lookahead = ((I+1) < stack.size()) ? stack[I+1] : tok_semicolon;
         int n_futures = count_possible_future_rules(stack_out, rules);
-        if(stack_out.size() >= 2 && n_futures == 0){
-            goto lbl_syntax_error;
-        }
         //std::cout << "node ["; print_AST(node); std::cout << "], ["; print_AST(lookahead); std::cout << "]" << std::endl;
         //try_apply_rules(stack_out, lookahead, rules);
         bool retry = false;
         int rule_id = get_next_rule_id(stack_out, lookahead, rules);
-
+        last_rule_id = rule_id;
+        last_cpfr = n_futures;
+        if((rule_id != RULEID_NONE) && (n_futures == 0)){
+            std::stringstream ss;
+            ss << "internal error: CPFR failed, but get_next_rule_id()="<<rule_id;
+            std::cerr << ss.str() << std::endl;
+            n_futures = count_possible_future_rules(stack_out, rules);
+            throw std::runtime_error(ss.str());
+        }
+        if((rule_id == RULEID_NONE) && (n_futures == 0)){
+            std::stringstream ss;
+            ss << "internal error: CPFR passed, but get_next_rule_id()="<<rule_id;
+            std::cerr << ss.str() << std::endl;
+            n_futures = count_possible_future_rules(stack_out, rules);
+            throw std::runtime_error(ss.str());
+            
+        }
+        if((rule_id == RULEID_NONE) && (n_futures == 0)){
+            std::cout << "CPFR and get_next_rule_id in agreement"<<std::endl;
+        }
+        if(stack_out.size() >= 2 && n_futures == 0){
+            std::cerr << "Error: n_futures == 0" << std::endl;
+            goto lbl_syntax_error;
+        }
         while(rule_id != RULEID_NONE){
             if(rule_id == RULEID_SHIFT){break;}
             check_reference_sequence(ref_seq, seq_I, rule_id, parse_seq);
@@ -622,7 +734,8 @@ AST MiniParser::parse_stack(v_AST &stack, v_rules rules, rseq ref_seq){
             rule_id = get_next_rule_id(stack_out, lookahead, rules);
         }
     }
-
+ 
+    std::cout << "final CPFR: " << last_cpfr << ", rule_id: " << last_rule_id << std::endl;
     //std::cout << "MiniParser::parse_stack applied " << n_applied_total << " rules total." << std::endl;
 
     if(stack_out.size() == 0){
@@ -829,6 +942,32 @@ std::ostream& operator<<(std::ostream& stream, MiniParser::AST ast){
     }
     return stream;
 }
+
+template<typename T> std::string print_list(T& list, std::string delim=", "){
+    std::stringstream ss;
+    for(auto I = list.begin(); I != list.end(); I++){
+        auto &val = *I; bool last = (I+1) == list.end();
+        ss << val;
+        if(!last){ss << delim;}
+    }
+    return ss.str();
+}
+
+std::ostream& operator<<(std::ostream& stream, rule R){
+    stream << "[" << print_list(R.previous, " ") << " . " << R.lookahead << " -> " << R.tok << "]";
+    return stream;
+}
+
+// std::ostream& operator<<(std::ostream& stream, MiniParser::rule rule){
+//     stream << "[";
+//     for(auto I = rule.previous.begin(); I != rule.previous.end(); I++){
+//         auto sym = *I; bool last = ((I+1) == rule.previous.end());
+//         stream << sym;
+//         if(!last){stream << " ";} 
+//     }
+//     stream << ". " << rule.lookahead << " -> " << rule.tok << "]";
+//     return stream;
+// }
 
 void Parser::parse_braces(AST &ast){
     if(ast.tok.type == "{}"){

@@ -39,6 +39,14 @@ template<typename T> class Span_const{
     template<typename K> bool operator==(const Span_const<K> &other) const;
 };
 
+template<typename T>
+std::ostream& operator<<(std::ostream& stream, Span_const<T> span){
+    for(auto &val:span){
+        stream << val << " ";
+    }
+    return stream;
+}
+
 ///--------- implementation --------------
 
 ///------ Span (non-const) --------------

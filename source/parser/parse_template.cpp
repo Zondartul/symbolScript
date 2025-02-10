@@ -23,20 +23,7 @@ Parser::AST ast_literal(std::string text){
 
 bool rmt_debug = false;
 
-template<typename T> std::string print_list(T& list, std::string delim=", "){
-    std::stringstream ss;
-    for(auto I = list.begin(); I != list.end(); I++){
-        auto &val = *I; bool last = (I+1) == list.end();
-        ss << val;
-        if(!last){ss << delim;}
-    }
-    return ss.str();
-}
 
-std::ostream& operator<<(std::ostream& stream, rule R){
-    stream << "[" << print_list(R.previous, " ") << " . " << R.lookahead << " -> " << R.tok << "]";
-    return stream;
-}
 
 bool rule_matches_template(rule R, AST templ){
     Span<std::string> rule_span(R.previous);
