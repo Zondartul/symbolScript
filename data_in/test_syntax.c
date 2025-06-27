@@ -38,7 +38,7 @@ while(C){
 // arrays and dicts
 Arr = [];
 Arr2 = [10, 20, 30];
-Dict = ["derp":dorp, "beep":"boop", A:int]; /// types are first-order objects
+Dict = ["derp":dorp, "beep":"boop", A:int]; /// types are first-order objects /// fix tokenizer 'in t'->'int'
 
 Arr[0] << Arr2[2]; // move command
 Arr[1] << 40;

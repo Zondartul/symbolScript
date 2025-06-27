@@ -18,6 +18,8 @@ using rule = MiniParser::rule;
 using v_rules = MiniParser::v_rules;
 
 void output_intermediate_ast(v_AST stack);
+std::string output_reconstructed_source(AST ast);
+std::string output_reconstructed_source(v_AST stack);
 
 bool MiniParser::AST::operator==(std::string S) const{
     if(S == ""){return false;}
@@ -548,7 +550,7 @@ template<typename T> void run_for_old_and_new_set_elements(std::set<T> &set, std
 
 typedef std::set<token> tokset;
 token CPFR_target = token{"program"};
-
+std::vector<tokset> CPFR_last_sets;
 /// checks if any of the future rules can possibly reduce the AST to "start" ("program") token.
 /// true: there is some possible future input by the user such that the source code parses correctly
 /// false: the parser is jammed by an unexpected token
@@ -558,11 +560,14 @@ bool count_possible_future_rules(const v_AST &stack, /*AST lookahead,*/ const v_
     //std::cout << "CPFR, begin. rule_len = " << rule_len << ";" << std::endl;
     //dbg_print_stack(stack);
     //dbg_print_all_sets(sets);
-
+    std::cout << "CPFR" << std::endl;
     for(auto [sym,set,idx]:rzip(stack, sets)){
+        std::cout << " cpfr idx(" << idx << "):"<<sym.tok<<std::endl;
         //std::cout << " ---- loop ---- idx " << idx << std::endl;
         //std::cout << "  CPFR add sym " << sym << std::endl;
-        set.insert(sym.tok);
+        if(idx != 0){               /// do not add the initial stack element to the "visited" set
+            set.insert(sym.tok);    /// as we only want the first elements that are obtained by reduction (meaning nothing comes after them)
+        }
         //dbg_print_all_sets(sets);
         std::function<void(token)> lmb_attempt_sym = [&](token arg){cpfr_attempt_sym(stack, rules, sets, tok_to_ast(arg), idx, rule_len);};
         
@@ -572,7 +577,8 @@ bool count_possible_future_rules(const v_AST &stack, /*AST lookahead,*/ const v_
     }
     //std::cout << "loop done" << std::endl;
     //dbg_print_all_sets(sets);
-    return sets.front().count(CPFR_target);//(token("program"));
+    CPFR_last_sets = sets;
+    return sets.front().count(CPFR_target);   
 }
     /// CPFR ponder #2 (06.02.2025)
         /// - when SHIFT encountered, we can essentially have any terminal as the next symbol
@@ -733,8 +739,10 @@ AST MiniParser::parse_stack(v_AST &stack, v_rules rules, rseq ref_seq){
             n_applied_total++;
             rule_id = get_next_rule_id(stack_out, lookahead, rules);
         }
+        /// all rules applied for tokens seen so far, continue to the rest of the tokens
     }
- 
+    /// end of input
+
     std::cout << "final CPFR: " << last_cpfr << ", rule_id: " << last_rule_id << std::endl;
     //std::cout << "MiniParser::parse_stack applied " << n_applied_total << " rules total." << std::endl;
 
@@ -748,6 +756,14 @@ AST MiniParser::parse_stack(v_AST &stack, v_rules rules, rseq ref_seq){
         return res;
     }
     else{ 
+        std::cout << "\n\n";
+        std::cout << "End of input but something is wrong." << std::endl;
+        if(last_cpfr == 1){
+            std::cout << "CPFR says additional input is needed to complete [" << CPFR_target << "]" << std::endl;
+            std::cout << "CPFR sets:" << std::endl;
+            dbg_print_all_sets(CPFR_last_sets);
+        }
+
         lbl_syntax_error:
         //if(stack2.size() != 1)
         /// that's bad - syntax error
@@ -792,6 +808,8 @@ AST MiniParser::parse_stack(v_AST &stack, v_rules rules, rseq ref_seq){
         }else{ss << "(no ref_seq)";}
         std::cerr << ss.str() << std::endl;
         output_intermediate_ast(stack_out);
+        std::cerr << "\nreconstructed source:\n"<<std::endl;
+        std::cerr << output_reconstructed_source(stack_out);
         throw std::runtime_error(ss.str());
     }
 }
@@ -828,6 +846,24 @@ void output_intermediate_ast(v_AST stack){
     auto ast_out = out.ast_to_json(ast_pretty);
     out.write_file("data_out/ast.json", ast_out);
 
+}
+
+std::string output_reconstructed_source(AST ast){
+    std::stringstream ss;
+    ss << ast.tok.text;
+    for(auto &ch:ast.children){
+        ss << output_reconstructed_source(ch);
+    }
+    ss << " ";
+    return ss.str();
+}
+
+std::string output_reconstructed_source(v_AST stack){
+    std::stringstream ss;
+    for(auto &ast:stack){
+        ss << output_reconstructed_source(ast);
+    }
+    return ss.str();
 }
 
 /// having these pop up in text messes with VSC syntax highlighting.
